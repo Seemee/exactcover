@@ -24,7 +24,7 @@ from distutils.extension import Extension
 exactcover = Extension('exactcover', sources=['exactcover.c'])
 
 setup(name='ExactCover',
-      version='0.1',
+      version='0.2',
       author='Kenneth Waters',
       author_email='kwwaters@gmail.com',
       url='http://github.com/kwaters/exactcover',
