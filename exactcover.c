@@ -19,6 +19,7 @@
  * DEALINGS IN THE SOFTWARE. */
 
 #include "Python.h"
+#include <stdbool.h>
 
 #include "compatibility23.include.c"
 
@@ -70,6 +71,7 @@ struct HeaderRec
     Element e;
 
     int count;
+    bool is_secondary;
     PyObject *object;
 };
 
@@ -190,7 +192,7 @@ link_row(Element *row)
 }
 
 /* Return the header for the column with the fewest '1's.  Returns NULL if
- * there are no columns in the matrix */
+ * there are only secondary columns in the matrix */
 static Header *
 smallest_column(Header *corner)
 {
@@ -198,6 +200,9 @@ smallest_column(Header *corner)
 
     Header *column = (Header *)corner->e.right;
     for (; column != corner; column = (Header *)column->e.right) {
+        if (column->is_secondary) {
+            continue;
+        }
         if (!smallest || smallest->count > column->count) {
             smallest = column;
         }
@@ -221,7 +226,7 @@ column_count(Header *corner)
 
 /* Finds or inserts a column, returns NULL on failure. */
 static Header *
-find_column(Header *corner, PyObject *object)
+find_column(Header *corner, PyObject *object, bool is_secondary)
 {
     Header *i;
 
@@ -247,6 +252,7 @@ find_column(Header *corner, PyObject *object)
     Py_INCREF(object);
     i->object = object;
     i->count = 0;
+    i->is_secondary = is_secondary;
 
     /* Link into the header chain. */
     i->e.right = &corner->e;
@@ -489,6 +495,7 @@ static int
 Coverings_init(Coverings *self, PyObject *args, PyObject *kwds)
 {
     PyObject *covers = NULL;
+    PyObject *secondary = NULL;
     PyObject *cover = NULL;
     PyObject *coverIt = NULL;
     PyObject *elem = NULL;
@@ -499,7 +506,7 @@ Coverings_init(Coverings *self, PyObject *args, PyObject *kwds)
                      "Coverings does not take keyword arguments");
         goto error;
     }
-    if (!PyArg_ParseTuple(args, "O:Coverings", &covers))
+    if (!PyArg_ParseTuple(args, "O|O:Coverings", &covers, &secondary))
         goto error;
 
     Coverings_cleanup(self);
@@ -517,7 +524,20 @@ Coverings_init(Coverings *self, PyObject *args, PyObject *kwds)
             goto error;
         while ((elem = PyIter_Next(it))) {
             Element *e = NULL;
-            Header *column = find_column(self->corner, elem);
+            Header *column;
+            bool is_secondary = false;
+
+            if (secondary) {
+                int res = PySequence_Contains(secondary, elem);
+                if (res == -1) {
+                    goto error;
+                }
+                else if (res == 1) {
+                    is_secondary = true;
+                }
+            }
+
+            column = find_column(self->corner, elem, is_secondary);
             if (!column)
                 goto error;
 
